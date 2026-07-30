@@ -61,31 +61,9 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 사전학습 모델을 받는다 (그쪽 README 참조 — `GPT_SoVITS/pretrained_models/` 에
 들어간다). NVIDIA GPU 를 권한다.
 
-### 2. 음색 준비
+### 2. 음색 넣기
 
-음색 하나에 필요한 것은 셋이다:
-
-| | |
-|---|---|
-| SoVITS 가중치 | 학습 산출물 `.ckpt` |
-| GPT 가중치 | 학습 산출물 `.pth`. 없으면 사전학습본을 쓴다 |
-| 참조 음성 | **3-10초** 짜리 `.wav` 와 그 안에서 말하는 내용(`ref_text`) |
-
-`ref_text` 가 실제 발화와 다르면 품질이 눈에 띄게 나빠진다 — 받아쓰기를 정확히 할 것.
-
-`tts_config.yaml` 의 `paths.models_dir` 아래에 폴더로 정리한다:
-
-```
-models/
-  myvoice/
-    jp/
-      model-e8.ckpt
-      model_e10.pth
-      reference.wav
-```
-
-`voices` 를 아예 비워 두면 `models_dir` 을 훑어 **자동으로 감지**한다
-(`easy_tts/config.py`). 이름을 직접 붙이고 설명을 달려면 YAML 에 적는 편이 낫다.
+아래 「모델 넣는 법」을 보고 `models_dir` 에 넣는다.
 
 ### 3. 서버
 
@@ -93,6 +71,125 @@ models/
 cp .env.example .env      # GPT-SoVITS 체크아웃 밖에 뒀을 때만 필요하다
 .venv/bin/python tts_server.py --port 9880
 ```
+
+## 모델 넣는 법
+
+### 이 서버가 가중치를 다루는 방식
+
+**GPT 가중치는 하나를 전부 공유하고, 음색마다 바꾸는 것은 SoVITS 가중치뿐이다.**
+
+```
+change_gpt_weights(paths.pretrained_gpt)   # 기동 때 한 번        engine.py:54
+change_sovits_weights(voice.sovits_model)  # 음색을 고를 때마다   engine.py:72
+```
+
+그래서 음색 하나에 필요한 파일은 **둘**이다 — SoVITS 가중치와 참조 음성.
+
+> `voices.*.gpt_model` 을 적어도 **지금 코드는 읽지 않는다** (`tts_server.py` 의
+> `_build_voices_config` 가 `sovits_model`·`ref_audio`·`ref_text`·`description`·
+> `language` 만 본다). 음색마다 GPT 가중치를 따로 쓰려면 코드를 고쳐야 한다.
+
+### 파일 형식
+
+| | 확장자 | 어디서 나오나 |
+|---|---|---|
+| **SoVITS 가중치** | `.ckpt` | 음색 학습 산출물. 음색마다 하나 |
+| **참조 음성** | `.wav` | **3-10초.** 그 목소리로 말하는 깨끗한 한 문장 |
+| **참조 텍스트** | `reference_text.txt` (UTF-8) 또는 YAML 의 `ref_text` | 참조 음성에서 **실제로 말하는 내용** |
+| **사전학습 GPT** | `.ckpt` | GPT-SoVITS 배포본. 기본 경로 `GPT_SoVITS/pretrained_models/s1v3.ckpt` |
+
+`.ckpt` 와 `.pth` 가 헷갈리기 쉽다. **이 서버는 `sovits_model` 에 적은 파일을
+`change_sovits_weights()` 에 그대로 넘긴다** — 자동 감지도 `*.ckpt` 만 집는다
+(`config.py:71`). 학습 산출물의 이름이 다르면 YAML 에 경로를 직접 적는다.
+
+**참조 텍스트가 실제 발화와 다르면 품질이 눈에 띄게 나빠진다.** 받아쓰기를 정확히 할 것.
+
+### 폴더 구조
+
+경로는 전부 `paths.models_dir` (기본 `../models`, **GPT-SoVITS 체크아웃 기준**) 아래다.
+자동 감지를 쓰려면 **`분류/음색` 두 단계**여야 한다:
+
+```
+models/                          ← models_dir
+  mygo/                          ← 분류 (아무 이름이나)
+    anon_jp/                     ← 음색 하나 = 폴더 하나
+      anon-e8.ckpt               ← SoVITS 가중치 (*.ckpt 중 첫 번째를 집는다)
+      reference.wav              ← 참조 음성
+      reference_text.txt         ← 참조 텍스트 (없어도 되지만 넣는 편이 낫다)
+    soyo_jp/
+      ...
+  genshin/
+    paimon_ko/
+      ...
+```
+
+참조 음성은 이 순서로 찾는다 (`config.py:106`):
+
+```
+reference_audios/**/default_reference.wav
+reference_audios/**/*.wav
+references/**/*.wav
+*.wav
+```
+
+### 두 가지 방법
+
+**① 자동 감지 — `tts_config.yaml` 의 `voices` 를 비워 둔다**
+
+폴더를 훑어 알아서 음색 목록을 만든다. 이름은 폴더 이름에서 `_ko`·`_kr` 을 뗀 것이고,
+언어는 폴더 이름으로 추론한다:
+
+| 폴더 이름에 | 언어 |
+|---|---|
+| `_jp` · `_ja` | Japanese |
+| `_cn` · `_zh` | Chinese |
+| `_en` | English |
+| 그 밖 | Korean |
+
+참조 텍스트는 `reference_text.txt` 를 읽고, 없으면 참조 음성 **파일 이름**에서 뽑는다
+(5자 이하면 `"레퍼런스 텍스트"` 로 떨어진다 — 품질이 나빠지니 파일을 넣는 편이 낫다).
+
+**② YAML 에 직접 적는다 — 이름·설명을 내가 정한다**
+
+`/voices` 목록에 보일 이름과 설명을 통제하려면 이쪽이다:
+
+```yaml
+default_voice: "anon-jp"
+
+voices:
+  anon-jp:
+    sovits_model: "mygo/anon_jp/anon-e8.ckpt"     # models_dir 기준 상대 경로
+    ref_audio: "mygo/anon_jp/reference.wav"
+    ref_text: "参考音声で実際に話している内容をそのまま書く"
+    language: "Japanese"
+    description: "확장 옵션 화면에 보일 설명"
+
+paths:
+  models_dir: "../models"
+  pretrained_gpt: "GPT_SoVITS/pretrained_models/s1v3.ckpt"
+```
+
+`voices` 를 하나라도 적으면 자동 감지는 **쓰지 않는다** — 전부 적어야 한다.
+
+### 넣고 나서 확인
+
+```bash
+curl -s localhost:9880/voices          # 음색이 목록에 뜨는가
+curl -s localhost:9880/config          # 서버가 물고 있는 경로가 맞는가
+curl -s -X POST localhost:9880/tts -H 'Content-Type: application/json' \
+     -d '{"text":"테스트","voice":"anon-jp"}' -o t.wav && ls -l t.wav
+```
+
+기동 로그에 설정된 음색 이름이 그대로 찍힌다. **음색을 바꾸는 첫 요청은 가중치를 다시
+올리므로 느리다** — 두 번째부터 정상 속도다.
+
+| 증상 | 원인 |
+|---|---|
+| `/voices` 가 비었다 | `models_dir` 경로가 틀렸거나 `분류/음색` 두 단계가 아니다 |
+| 음색이 하나만 안 뜬다 | 그 폴더에 `*.ckpt` 가 없거나 참조 `.wav` 를 못 찾았다 (둘 다 있어야 등록된다) |
+| 목소리는 나오는데 안 닮았다 | 참조 음성이 너무 짧거나 잡음이 섞였다. 3-10초 깨끗한 한 문장으로 |
+| 발음이 뭉개진다 | `ref_text` 가 참조 음성과 다르다 |
+| 기동이 1-3분 걸린다 | 정상이다 (모델 로드). 그 뒤로는 상주한다 |
 
 ## 상시 띄우기
 
