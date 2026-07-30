@@ -26,7 +26,7 @@ GPT-SoVITS 가 이미 돌고 있다는 전제다 (없으면 아래 「처음부�
 ```bash
 # 1. GPT-SoVITS 체크아웃 안에 이 저장소 파일을 둔다
 cd ~/GPT-SoVITS
-git clone https://github.com/vanillapapaya/gpt-sovits-tts-server tmp && \
+git clone https://github.com/vanillapapaya/gpt-sovits-server tmp && \
   mv tmp/tts_server.py tmp/easy_tts tmp/*.example* . && rm -rf tmp
 
 # 2. GPT-SoVITS 의 venv 안에 서버 의존성만 더 깐다
