@@ -1,7 +1,7 @@
 # GPT-SoVITS TTS Server
 
-GPT-SoVITS 에 **얇은 HTTP 껍데기**를 씌운다. 목소리를 이름 하나로 고르고, 모델은
-미리 올려 둔 채로 재사용한다.
+GPT-SoVITS 에 얇은 HTTP 껍데기를 씌운다. **음색을 이름 하나로 고른다** — 그게
+stock `api_v2.py` 와 다른 전부다.
 
 ```
 POST /tts   {"text": "こんにちは", "language": "Japanese", "voice": "anon-jp"}
@@ -9,13 +9,16 @@ POST /tts   {"text": "こんにちは", "language": "Japanese", "voice": "anon-j
 GET  /voices → 설정에 적어 둔 목소리 목록
 ```
 
-stock GPT-SoVITS 의 `api_v2.py` 와 다른 점은 하나다 — **음색을 이름으로 고른다.**
 가중치·참조 음성·참조 텍스트를 YAML 한 장에 적어 두면 요청은 이름만 보낸다.
+`api_v2.py` 는 요청마다 `ref_audio_path` 와 `prompt_text` 를 들려 보내야 하고
+`/voices` 도 없다. 클라이언트가 모델 사정을 알아야 하는 구조라서 껍데기를 씌웠다.
+
+모델은 **기동 때 한 번 올려 두고 재사용한다.** 요청마다 올리면 첫 문장이 수십 초다.
 
 [Manga Live Reader](https://github.com/vanillapapaya/MangaLiveReader) 가 이 계약을
-쓴다. 그 확장 옵션 화면에 이 서버 주소를 넣으면 만화 원문을 이 목소리로 읽는다.
+쓴다 — 확장 옵션 화면에 이 서버 주소를 넣으면 만화 원문을 이 목소리로 읽는다.
 
-**모델은 이 저장소에 없다.** 음색은 각자 학습하거나 구해서 넣는다.
+**음색 모델은 이 저장소에 없다.** 각자 학습하거나 구해서 넣는다.
 
 ---
 
