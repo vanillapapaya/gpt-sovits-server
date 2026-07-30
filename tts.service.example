@@ -1,0 +1,17 @@
+# systemd 유닛 예시. `~/.config/systemd/user/tts.service` 에 두고
+#   systemctl --user enable --now tts
+#   loginctl enable-linger $USER      # 로그인 없이도 돌게 한다
+[Unit]
+Description=GPT-SoVITS TTS server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/<사용자>/GPT-SoVITS
+ExecStart=/home/<사용자>/GPT-SoVITS/.venv/bin/python tts_server.py --host 127.0.0.1
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

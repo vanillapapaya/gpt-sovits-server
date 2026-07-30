@@ -1,0 +1,40 @@
+# 음색 설정. `tts_config.yaml` 로 복사해서 고친다 (그쪽은 커밋되지 않는다).
+#
+# 경로는 전부 paths.models_dir 기준 상대 경로다.
+
+# 목소리를 안 고르고 요청했을 때 쓸 것
+default_voice: "example-jp"
+
+voices:
+  example-jp:
+    # 학습한 SoVITS 가중치 (.ckpt)
+    sovits_model: "example/jp/model-e8.ckpt"
+    # 학습한 GPT 가중치 (.pth). 없으면 사전학습본을 쓴다
+    gpt_model: "example/jp/model_e10.pth"
+    # 참조 음성 3-10초. 이 목소리를 흉내 낸다
+    ref_audio: "example/jp/reference.wav"
+    # 참조 음성에 실제로 담긴 말. **틀리면 품질이 눈에 띄게 나빠진다**
+    ref_text: "参考音声で実際に話している内容をそのまま書く"
+    language: "Japanese"
+    # 확장 옵션 화면의 목록에 보일 설명
+    description: "예시 음색 (일본어)"
+
+  example-ko:
+    sovits_model: "example/ko/model-e8.ckpt"
+    gpt_model: "example/ko/model_e10.pth"
+    ref_audio: "example/ko/reference.wav"
+    ref_text: "참조 음성에서 실제로 말하는 내용을 그대로 적는다"
+    language: "Korean"
+    description: "예시 음색 (한국어)"
+
+# 추론 설정 (고급). 그대로 두어도 된다
+inference:
+  top_k: 15
+  top_p: 1.0
+  temperature: 1.0
+  speed: 1.0
+
+paths:
+  # 음색 가중치가 있는 폴더. GPT-SoVITS 체크아웃 기준 상대 경로
+  models_dir: "../models"
+  pretrained_gpt: "GPT_SoVITS/pretrained_models/s1v3.ckpt"

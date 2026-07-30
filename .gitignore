@@ -1,0 +1,15 @@
+# 내 음색 설정. example 을 복사해서 만든다
+tts_config.yaml
+.env
+
+# 모델 가중치는 저장소에 넣지 않는다 (수백 MB 짜리고, 학습한 사람 것이다)
+models/
+*.ckpt
+*.pth
+*.wav
+
+# 산출물·환경
+outputs/
+.venv/
+__pycache__/
+*.pyc

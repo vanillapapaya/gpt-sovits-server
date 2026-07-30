@@ -1,0 +1,9 @@
+# 서버가 추가로 쓰는 것만. 추론 의존성(torch, librosa, transformers …)은
+# GPT-SoVITS 쪽 requirements.txt 가 이미 깔아 준다 — 그 venv 안에서 이것만 더 깐다.
+fastapi>=0.115
+uvicorn>=0.30
+pyyaml
+python-dotenv
+soundfile
+scipy
+numpy<2.0
