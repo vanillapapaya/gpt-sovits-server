@@ -22,38 +22,22 @@ GET  /voices → 설정에 적어 둔 목소리 목록
 
 ---
 
-## 빠른 시작
+# 쓰기
 
-GPT-SoVITS 가 이미 돌고 있다는 전제다 (없으면 아래 「처음부터」).
+**여기까지만 읽으면 띄울 수 있다.**
 
-```bash
-# 1. GPT-SoVITS 체크아웃 안에 이 저장소 파일을 둔다
-cd ~/GPT-SoVITS
-git clone https://github.com/vanillapapaya/gpt-sovits-server tmp && \
-  mv tmp/tts_server.py tmp/easy_tts tmp/*.example* . && rm -rf tmp
+## 필요한 것
 
-# 2. GPT-SoVITS 의 venv 안에 서버 의존성만 더 깐다
-.venv/bin/pip install fastapi uvicorn pyyaml python-dotenv
+- **NVIDIA 그래픽카드.** CPU 로도 돌지만 실시간이 안 된다
+- [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) 체크아웃과 그 사전학습 모델
+- **음색 하나에 파일 둘** — SoVITS 가중치(`.ckpt`)와 참조 음성(`.wav` 3-10초)
 
-# 3. 음색을 적는다
-cp tts_config.example.yaml tts_config.yaml && $EDITOR tts_config.yaml
+이 서버는 독립 패키지가 아니다. **GPT-SoVITS 의 venv 안에서 도는 껍데기**라
+추론 의존성(torch, librosa, transformers …)은 그쪽이 이미 깔아 준다.
 
-# 4. 띄운다
-.venv/bin/python tts_server.py
-```
+## 설치 — 네 단계
 
-```bash
-curl -s localhost:9880/voices | head -c 200
-curl -s -X POST localhost:9880/tts \
-  -H 'Content-Type: application/json' \
-  -d '{"text":"테스트입니다"}' -o test.wav && ls -l test.wav
-```
-
-`test.wav` 가 재생되면 끝이다.
-
-## 처음부터
-
-### 1. GPT-SoVITS
+### 1. GPT-SoVITS (이미 있으면 건너뛴다)
 
 ```bash
 git clone https://github.com/RVC-Boss/GPT-SoVITS
@@ -61,98 +45,106 @@ cd GPT-SoVITS
 python -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```
 
-사전학습 모델을 받는다 (그쪽 README 참조 — `GPT_SoVITS/pretrained_models/` 에
-들어간다). NVIDIA GPU 를 권한다.
+사전학습 모델은 그쪽 README 를 따라 받는다 (`GPT_SoVITS/pretrained_models/` 에
+들어간다).
 
-### 2. 음색 넣기
-
-아래 「모델 넣는 법」을 보고 `models_dir` 에 넣는다.
-
-### 3. 서버
+### 2. 이 서버 얹기
 
 ```bash
-cp .env.example .env      # GPT-SoVITS 체크아웃 밖에 뒀을 때만 필요하다
-.venv/bin/python tts_server.py --port 9880
+cd ~/GPT-SoVITS
+git clone https://github.com/vanillapapaya/gpt-sovits-server tmp && \
+  mv tmp/tts_server.py tmp/easy_tts tmp/requirements.txt \
+     tmp/*.example* tmp/.env.example . && rm -rf tmp
+
+.venv/bin/pip install -r requirements.txt
 ```
 
-## 모델 넣는 법
+`requirements.txt` 에는 **서버가 추가로 쓰는 것만** 있다. 추론 의존성은 GPT-SoVITS
+쪽이 이미 깔아 두었으므로 다시 깔지 않는다.
 
-### 이 서버가 가중치를 다루는 방식
+체크아웃 **밖에** 두고 싶을 때만 `cp .env.example .env` 하고 `SOVITS_PATH` 를 적는다.
 
-**GPT 가중치는 하나를 전부 공유하고, 음색마다 바꾸는 것은 SoVITS 가중치뿐이다.**
+### 3. 음색 넣기
 
-```
-change_gpt_weights(paths.pretrained_gpt)   # 기동 때 한 번        engine.py:54
-change_sovits_weights(voice.sovits_model)  # 음색을 고를 때마다   engine.py:72
-```
-
-그래서 음색 하나에 필요한 파일은 **둘**이다 — SoVITS 가중치와 참조 음성.
-
-> `voices.*.gpt_model` 을 적어도 **지금 코드는 읽지 않는다** (`tts_server.py` 의
-> `_build_voices_config` 가 `sovits_model`·`ref_audio`·`ref_text`·`description`·
-> `language` 만 본다). 음색마다 GPT 가중치를 따로 쓰려면 코드를 고쳐야 한다.
-
-### 파일 형식
-
-| | 확장자 | 어디서 나오나 |
-|---|---|---|
-| **SoVITS 가중치** | `.ckpt` | 음색 학습 산출물. 음색마다 하나 |
-| **참조 음성** | `.wav` | **3-10초.** 그 목소리로 말하는 깨끗한 한 문장 |
-| **참조 텍스트** | `reference_text.txt` (UTF-8) 또는 YAML 의 `ref_text` | 참조 음성에서 **실제로 말하는 내용** |
-| **사전학습 GPT** | `.ckpt` | GPT-SoVITS 배포본. 기본 경로 `GPT_SoVITS/pretrained_models/s1v3.ckpt` |
-
-`.ckpt` 와 `.pth` 가 헷갈리기 쉽다. **이 서버는 `sovits_model` 에 적은 파일을
-`change_sovits_weights()` 에 그대로 넘긴다** — 자동 감지도 `*.ckpt` 만 집는다
-(`config.py:71`). 학습 산출물의 이름이 다르면 YAML 에 경로를 직접 적는다.
-
-**참조 텍스트가 실제 발화와 다르면 품질이 눈에 띄게 나빠진다.** 받아쓰기를 정확히 할 것.
-
-### 폴더 구조
-
-경로는 전부 `paths.models_dir` (기본 `../models`, **GPT-SoVITS 체크아웃 기준**) 아래다.
-자동 감지를 쓰려면 **`분류/음색` 두 단계**여야 한다:
+`models/` 아래에 **`분류/음색` 두 단계**로 넣으면 알아서 찾는다:
 
 ```
-models/                          ← models_dir
+models/                          ← GPT-SoVITS 체크아웃 옆
   mygo/                          ← 분류 (아무 이름이나)
     anon_jp/                     ← 음색 하나 = 폴더 하나
-      anon-e8.ckpt               ← SoVITS 가중치 (*.ckpt 중 첫 번째를 집는다)
-      reference.wav              ← 참조 음성
-      reference_text.txt         ← 참조 텍스트 (없어도 되지만 넣는 편이 낫다)
-    soyo_jp/
-      ...
-  genshin/
-    paimon_ko/
-      ...
+      anon-e8.ckpt               ← SoVITS 가중치
+      reference.wav              ← 참조 음성 3-10초
+      reference_text.txt         ← 그 음성에서 실제로 말하는 내용 (UTF-8)
 ```
 
-참조 음성은 이 순서로 찾는다 (`config.py:106`):
+폴더 이름 끝의 `_jp`·`_cn`·`_en` 으로 언어를 알아낸다 (그 밖은 한국어).
 
+**참조 텍스트가 실제 발화와 다르면 품질이 눈에 띄게 나빠진다.** 받아쓰기를 정확히
+할 것. 이름과 설명을 직접 정하고 싶으면 [아래](#음색을-yaml-로-직접-적기).
+
+### 4. 띄우기
+
+```bash
+cp tts_config.example.yaml tts_config.yaml   # 자동 감지만 쓸 거면 voices 를 비워 둔다
+.venv/bin/python tts_server.py
 ```
-reference_audios/**/default_reference.wav
-reference_audios/**/*.wav
-references/**/*.wav
-*.wav
+
+**기동에 1-3분 걸린다** (모델 로드). 그 뒤로는 상주한다.
+
+## 확인
+
+```bash
+curl -s localhost:9880/voices          # 음색이 목록에 뜨는가
+curl -s -X POST localhost:9880/tts \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"테스트입니다"}' -o test.wav && ls -l test.wav
 ```
 
-### 두 가지 방법
+`test.wav` 가 재생되면 끝이다.
 
-**① 자동 감지 — `tts_config.yaml` 의 `voices` 를 비워 둔다**
+## 안 될 때
 
-폴더를 훑어 알아서 음색 목록을 만든다. 이름은 폴더 이름에서 `_ko`·`_kr` 을 뗀 것이고,
-언어는 폴더 이름으로 추론한다:
-
-| 폴더 이름에 | 언어 |
+| 증상 | 원인 |
 |---|---|
-| `_jp` · `_ja` | Japanese |
-| `_cn` · `_zh` | Chinese |
-| `_en` | English |
-| 그 밖 | Korean |
+| `/voices` 가 비었다 | `models_dir` 경로가 틀렸거나 `분류/음색` 두 단계가 아니다 |
+| 음색이 하나만 안 뜬다 | 그 폴더에 `*.ckpt` 가 없거나 참조 `.wav` 를 못 찾았다 (둘 다 있어야 등록된다) |
+| 목소리는 나오는데 안 닮았다 | 참조 음성이 너무 짧거나 잡음이 섞였다. 3-10초 깨끗한 한 문장으로 |
+| 발음이 뭉개진다 | `ref_text` 가 참조 음성과 다르다 |
+| 음색 바꾼 첫 요청이 느리다 | 정상이다. 가중치를 다시 올린다 — 두 번째부터 정상 속도 |
+| 기동이 1-3분 걸린다 | 정상이다 (모델 로드) |
 
-참조 텍스트는 `reference_text.txt` 를 읽고, 없으면 참조 음성 **파일 이름**에서 뽑는다
-(5자 이하면 `"레퍼런스 텍스트"` 로 떨어진다 — 품질이 나빠지니 파일을 넣는 편이 낫다).
+`curl -s localhost:9880/config` 로 서버가 실제로 물고 있는 경로를 볼 수 있다.
+기동 로그에도 설정된 음색 이름이 그대로 찍힌다.
 
-**② YAML 에 직접 적는다 — 이름·설명을 내가 정한다**
+## 상시 띄우기
+
+`tts.service.example` 을 `~/.config/systemd/user/tts.service` 로 복사해 경로를 고친다.
+
+```bash
+systemctl --user enable --now tts
+loginctl enable-linger $USER      # 이걸 빠뜨리면 재부팅 후 안 뜬다
+journalctl --user -u tts -f
+```
+
+## 열어 둘 때 주의
+
+**인증이 없다.** 그리고 CORS 가 `allow_origins=["*"]` 라 브라우저에서 아무 페이지나
+부를 수 있다. 그래서 기본 바인딩을 **루프백**으로 두었다.
+
+다른 기기에서 쓰려면 주소를 좁혀서 연다:
+
+```bash
+python tts_server.py --host 100.x.y.z      # 예: Tailscale 주소
+```
+
+`0.0.0.0` 은 집 LAN 에까지 열린다는 뜻이다 — 인증이 없는 서버에는 권하지 않는다.
+인터넷에 열 것이면 앞단에 인증 프록시를 둔다.
+
+---
+
+# 더 하기
+
+## 음색을 YAML 로 직접 적기
 
 `/voices` 목록에 보일 이름과 설명을 통제하려면 이쪽이다:
 
@@ -174,35 +166,36 @@ paths:
 
 `voices` 를 하나라도 적으면 자동 감지는 **쓰지 않는다** — 전부 적어야 한다.
 
-### 넣고 나서 확인
+<details>
+<summary>자동 감지가 파일을 찾는 규칙</summary>
 
-```bash
-curl -s localhost:9880/voices          # 음색이 목록에 뜨는가
-curl -s localhost:9880/config          # 서버가 물고 있는 경로가 맞는가
-curl -s -X POST localhost:9880/tts -H 'Content-Type: application/json' \
-     -d '{"text":"테스트","voice":"anon-jp"}' -o t.wav && ls -l t.wav
-```
+이름은 폴더 이름에서 `_ko`·`_kr` 을 뗀 것이고, 언어는 폴더 이름으로 추론한다:
 
-기동 로그에 설정된 음색 이름이 그대로 찍힌다. **음색을 바꾸는 첫 요청은 가중치를 다시
-올리므로 느리다** — 두 번째부터 정상 속도다.
-
-| 증상 | 원인 |
+| 폴더 이름에 | 언어 |
 |---|---|
-| `/voices` 가 비었다 | `models_dir` 경로가 틀렸거나 `분류/음색` 두 단계가 아니다 |
-| 음색이 하나만 안 뜬다 | 그 폴더에 `*.ckpt` 가 없거나 참조 `.wav` 를 못 찾았다 (둘 다 있어야 등록된다) |
-| 목소리는 나오는데 안 닮았다 | 참조 음성이 너무 짧거나 잡음이 섞였다. 3-10초 깨끗한 한 문장으로 |
-| 발음이 뭉개진다 | `ref_text` 가 참조 음성과 다르다 |
-| 기동이 1-3분 걸린다 | 정상이다 (모델 로드). 그 뒤로는 상주한다 |
+| `_jp` · `_ja` | Japanese |
+| `_cn` · `_zh` | Chinese |
+| `_en` | English |
+| 그 밖 | Korean |
 
-## 상시 띄우기
+참조 음성은 이 순서로 찾는다 (`config.py:106`):
 
-`tts.service.example` 을 `~/.config/systemd/user/tts.service` 로 복사해 경로를 고친다.
-
-```bash
-systemctl --user enable --now tts
-loginctl enable-linger $USER      # 이걸 빠뜨리면 재부팅 후 안 뜬다
-journalctl --user -u tts -f
 ```
+reference_audios/**/default_reference.wav
+reference_audios/**/*.wav
+references/**/*.wav
+*.wav
+```
+
+참조 텍스트는 `reference_text.txt` 를 읽고, 없으면 참조 음성 **파일 이름**에서 뽑는다
+(5자 이하면 `"레퍼런스 텍스트"` 로 떨어진다 — 품질이 나빠지니 파일을 넣는 편이 낫다).
+
+가중치는 `*.ckpt` 중 첫 번째를 집는다 (`config.py:71`). `.ckpt` 와 `.pth` 가
+헷갈리기 쉬운데, 이 서버는 `sovits_model` 에 적은 파일을
+`change_sovits_weights()` 에 그대로 넘긴다. 학습 산출물의 이름이 다르면 YAML 에
+경로를 직접 적는다.
+
+</details>
 
 ## API
 
@@ -232,19 +225,24 @@ journalctl --user -u tts -f
 
 첫 요청은 모델 로드 때문에 느리다. 음색을 **바꿀 때도** 가중치를 다시 올린다.
 
-## 열어 둘 때 주의
+---
 
-**인증이 없다.** 그리고 CORS 가 `allow_origins=["*"]` 라 브라우저에서 아무 페이지나
-부를 수 있다. 그래서 기본 바인딩을 **루프백**으로 두었다.
+# 안쪽
 
-다른 기기에서 쓰려면 주소를 좁혀서 연다:
+## 가중치를 다루는 방식
 
-```bash
-python tts_server.py --host 100.x.y.z      # 예: Tailscale 주소
+**GPT 가중치는 하나를 전부 공유하고, 음색마다 바꾸는 것은 SoVITS 가중치뿐이다.**
+
+```
+change_gpt_weights(paths.pretrained_gpt)   # 기동 때 한 번        engine.py:54
+change_sovits_weights(voice.sovits_model)  # 음색을 고를 때마다   engine.py:72
 ```
 
-`0.0.0.0` 은 집 LAN 에까지 열린다는 뜻이다 — 인증이 없는 서버에는 권하지 않는다.
-인터넷에 열 것이면 앞단에 인증 프록시를 둔다.
+그래서 음색 하나에 필요한 파일이 둘이다.
+
+> `voices.*.gpt_model` 을 적어도 **지금 코드는 읽지 않는다** (`tts_server.py` 의
+> `_build_voices_config` 가 `sovits_model`·`ref_audio`·`ref_text`·`description`·
+> `language` 만 본다). 음색마다 GPT 가중치를 따로 쓰려면 코드를 고쳐야 한다.
 
 ## 무엇이 들어 있나
 
