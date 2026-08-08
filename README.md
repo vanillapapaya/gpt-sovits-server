@@ -54,6 +54,7 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 cd ~/GPT-SoVITS
 git clone https://github.com/vanillapapaya/gpt-sovits-server tmp && \
   mv tmp/tts_server.py tmp/easy_tts tmp/requirements.txt \
+     tmp/TtsServer.cmd tmp/tts_launcher.ps1 \
      tmp/*.example* tmp/.env.example . && rm -rf tmp
 
 .venv/bin/pip install -r requirements.txt
@@ -88,6 +89,11 @@ models/                          ← GPT-SoVITS 체크아웃 옆
 cp tts_config.example.yaml tts_config.yaml   # 자동 감지만 쓸 거면 voices 를 비워 둔다
 .venv/bin/python tts_server.py
 ```
+
+윈도우면 **`TtsServer.cmd` 를 더블클릭**해도 된다. 무엇이 없는지 짚어 주고, 서버
+의존성 설치와 `tts_config.yaml` 초안 복사는 알아서 한다. **설치를 대신해 주지는
+않는다** — GPT-SoVITS 본체·음색 가중치·참조 음성은 자동으로 구할 수 있는 것이
+하나도 없어서, 무엇을 해야 하는지 적어 주는 데까지가 전부다.
 
 **기동에 1-3분 걸린다** (모델 로드). 그 뒤로는 상주한다.
 
@@ -254,6 +260,8 @@ easy_tts/                 GPT-SoVITS 추론 래퍼
   emotions.py, parser.py  문장 분해와 감정 태그
 tts_config.example.yaml   음색 설정 예시
 tts.service.example       systemd 유닛 예시
+TtsServer.cmd             윈도우 더블클릭 런처 (ASCII 전용 — cmd 가 cp949 로 읽는다)
+tts_launcher.ps1          그 실제 내용. 전제 검사 · 의존성 설치 · 기동 (UTF-8 BOM)
 ```
 
 ## 라이선스
